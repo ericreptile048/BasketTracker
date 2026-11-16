@@ -69,13 +69,25 @@ test('3 points : 2 spots à 3/10 = réussi, 1 seul spot = raté', () => {
   assert.strictEqual(B.evalItem(I(3), ses(d, 0, 'A', [[3, 'cg', 3], [3, 'face', 4]])).pass, true);
   assert.strictEqual(B.evalItem(I(3), ses(d, 3, 'A', [[3, 'cg', 5]])).pass, false);
 });
-test('3 points : la rotation prend les 2 spots tirés le moins récemment', () => {
-  const d = B.blank();
-  assert.deepStrictEqual(B.pick3pt(d), ['cg', 'face']);
-  ses(d, 0, 'A', [[3, 'cg', 2], [3, 'face', 2]]);
-  assert.deepStrictEqual(B.pick3pt(d), ['cg', 'cd']);                       // corner D jamais tiré : il passe
-  ses(d, 3, 'A', [[3, 'cg', 2], [3, 'cd', 2]]);
-  assert.deepStrictEqual(B.pick3pt(d), ['cg', 'face']);                     // face, le plus ancien, revient
+test('3 points : 2 spots différents parmi les 5, les mêmes toute la journée', () => {
+  const d = B.blank(), K = ['cg', 'ag', 'face', 'ad', 'cd'];
+  const p = B.pick3pt(d, T0); assert.strictEqual(p.length, 2); assert.notStrictEqual(p[0], p[1]); assert.ok(p.every(k => K.includes(k)));
+  assert.deepStrictEqual(B.pick3pt(d, T0 + 5 * 3600e3), p);                 // le brief et la séance tombent pareil
+});
+test('3 points : le tirage varie selon les jours (pas toujours corner G + face)', () => {
+  const d = B.blank(), seen = new Set();
+  for (let i = 0; i < 30; i++) seen.add(B.pick3pt(d, T0 + i * DAY).join('+'));
+  assert.ok(seen.size >= 5, 'seulement ' + seen.size + ' combinaisons');
+});
+test('3 points : les spots déjà tirés laissent la place aux autres', () => {
+  const d = B.blank(); ses(d, 0, 'A', [[3, 'cg', 2], [3, 'face', 2]]); ses(d, 3, 'A', [[3, 'ag', 2], [3, 'cd', 2]]);
+  const p = B.pick3pt(d, T0 + 7 * DAY);
+  assert.ok(p.includes('ad'), 'le 45° D, jamais tiré, doit passer : ' + p);
+  assert.ok(!p.includes('ag') && !p.includes('cd'), 'pas les 2 de la dernière séance : ' + p);
+});
+test('3 points : l\'avancée ne compte que les spots déjà tirés', () => {
+  const d = B.blank(); ses(d, 0, 'A', [[3, 'cg', 3], [3, 'face', 3]]);
+  assert.strictEqual(B.progress(d, I(3)), 1);
 });
 test('layups : 9/10 des deux côtés', () => {
   const d = B.blank();
@@ -195,7 +207,7 @@ test('abandonner ne garde rien', () => {
   assert.strictEqual(d.current, null); assert.strictEqual(d.sessions.length, 0);
 });
 test('séance A : les 2 spots de 3 points sont fixés au départ', () => {
-  const d = B.blank(); assert.deepStrictEqual(B.startSession(d, 'A', T0).spots, ['cg', 'face']);
+  const d = B.blank(); const sp = B.startSession(d, 'A', T0).spots; assert.strictEqual(sp.length, 2); assert.deepStrictEqual(sp, B.pick3pt(B.blank(), T0));
   assert.deepStrictEqual(B.startSession(d, 'B', T0).spots, []);
 });
 
@@ -203,7 +215,7 @@ console.log('Déroulé des séances');
 test('séance A : échauffement, 3 lancers, 3 mi-distance, 2 spots à 3 points, 2 layups, fin', () => {
   const d = B.blank(), c = B.startSession(d, 'A', T0), S = B.buildSteps(d, c);
   assert.deepStrictEqual(S.map(s => s.kind + (s.item ? ':' + s.item + (s.key ? '/' + s.key : '') : '')),
-    ['warm', 'score:1/ft', 'score:1/ft', 'score:1/ft', 'score:2/face', 'score:2/g', 'score:2/d', 'score:3/cg', 'score:3/face', 'score:9/d', 'score:9/g', 'end']);
+    ['warm', 'score:1/ft', 'score:1/ft', 'score:1/ft', 'score:2/face', 'score:2/g', 'score:2/d', 'score:3/' + c.spots[0], 'score:3/' + c.spots[1], 'score:9/d', 'score:9/g', 'end']);
 });
 test('séance B au début : slalom × 4, chaque move en immobile seulement, layups, jump stop, 3 sprints et 2 repos', () => {
   const d = B.blank(), c = B.startSession(d, 'B', T0), S = B.buildSteps(d, c);

@@ -16,7 +16,7 @@
     { id: 2, n: 'Mi-distance', short: 'Mi-distance', f: 'tir', t: 'hi', g: 7, goal: '7/10 à chacun des 3 spots',
       sub: [['face', 'face'], ['g', '45° G'], ['d', '45° D']] },
     { id: 3, n: '3 points', short: '3 points', f: 'tir', t: 'hi', g: 3, goal: '3/10 à chaque spot (4 = bonus)',
-      sub: [['cg', 'corner G'], ['face', 'face'], ['cd', 'corner D']] },
+      sub: [['cg', 'corner G'], ['ag', '45° G'], ['face', 'face'], ['ad', '45° D'], ['cd', 'corner D']] },
     { id: 4, n: 'Jump stop + tir', short: 'Jump stop', f: 'tir', t: 'hi', g: 5, goal: '5/10' },
     { id: 5, n: 'Slalom main faible', short: 'Slalom', f: 'drib', t: 'time', goal: 'suivi : meilleur temps et pertes' },
     { id: 6, n: 'Crossover', short: 'Crossover', f: 'drib', t: 'lo', goal: '0 perte en marchant et en courant', sub: MOVES, need: ['walk', 'run'] },
@@ -126,6 +126,9 @@
     if (it.t === 'lo') { const lv = it.sub.map(([k]) => subStatus(data, it, k)), cur = lv.findIndex(x => x !== 'ok');
       if (cur < 0) return 1;
       const v = lastSub(data, it, it.sub[cur][0]); return (cur + (v === null ? 0 : (10 - v) / 10)) / it.sub.length; }
+    if (it.id === 3) { // 3 points : la moyenne des spots déjà tirés (on n'en tire que 2 sur 5 par séance)
+      const v = it.sub.map(([k]) => lastSub(data, it, k)).filter(x => x !== null);
+      return v.length ? mean(v.map(x => Math.min(1, x / it.g))) : 0; }
     if (it.sub) return mean(it.sub.map(([k]) => { const v = lastSub(data, it, k); return v === null ? 0 : Math.min(1, v / it.g); }));
     if (!S.L.length) return 0;
     return Math.min(1, S.L[S.L.length - 1].e.val / it.g);
@@ -156,20 +159,23 @@
   function nextType(data) { const S = sorted(data); return S.length && S[S.length - 1].type === 'A' ? 'B' : 'A'; }
   function doneToday(data, now = Date.now()) { return data.sessions.some(s => dayKey(s.start) === dayKey(now)); }
   function daysLeft(now = Date.now()) { return Math.max(0, Math.ceil((GOAL - new Date(now).setHours(0, 0, 0, 0)) / 864e5)); }
-  // 3 points : les 2 spots tirés le moins récemment (rotation d'une séance à l'autre).
-  function pick3pt(data) {
-    const it = ITEM(3), last = {};
-    it.sub.forEach(([k]) => last[k] = 0);
-    sorted(data).forEach(s => entries(s, 3).forEach(e => { last[e.key] = s.start; }));
-    return it.sub.map(([k]) => k).sort((a, b) => last[a] - last[b] || 0).slice(0, 2)
-      .sort((a, b) => it.sub.findIndex(x => x[0] === a) - it.sub.findIndex(x => x[0] === b));
+  // 3 points : 2 spots parmi 5. Les moins récemment tirés passent d'abord ; entre égaux, tirage au hasard.
+  // Le hasard dépend du jour : le brief et la séance qui démarre juste après tombent sur les mêmes spots.
+  function pick3pt(data, now = Date.now()) {
+    const keys = ITEM(3).sub.map(x => x[0]), last = {};
+    keys.forEach(k => last[k] = 0);
+    sorted(data).forEach(s => entries(s, 3).forEach(e => { if (e.key in last) last[e.key] = s.start; }));
+    let seed = dayKey(now) % 2147483647;
+    const rnd = () => (seed = (seed * 48271) % 2147483647) / 2147483647, r = {};
+    keys.forEach(k => r[k] = rnd());
+    return keys.slice().sort((a, b) => last[a] - last[b] || r[a] - r[b]).slice(0, 2).sort((a, b) => keys.indexOf(a) - keys.indexOf(b));
   }
 
   // ---------- La séance en cours (survit à un refresh) ----------
   // Tout est daté en heures absolues : après un refresh ou si iOS tue l'app, on reprend au bon endroit avec le bon temps.
   function startSession(data, type, now = Date.now()) {
     // ws / wt / wp : le temps de l'échauffement en cours, son début, sa pause · rt : le début d'un repos
-    data.current = { type, start: now, step: 0, res: [], spots: type === 'A' ? pick3pt(data) : [], ws: 0, wt: null, wp: null, rt: null };
+    data.current = { type, start: now, step: 0, res: [], spots: type === 'A' ? pick3pt(data, now) : [], ws: 0, wt: null, wp: null, rt: null };
     return data.current;
   }
   function record(data, entry) { if (data.current) data.current.res.push(entry); }

@@ -125,8 +125,10 @@
   const SPOT = {
     '1/ft': { p: [150, 116], l: 'ligne des lancers francs' },
     // mi-distance : entre la raquette et la ligne à 3 points (~5,5 m), pour ne pas se confondre avec le lancer franc
-    '2/face': { p: [150, 146], l: 'face' }, '2/g': { p: [70, 112], l: '45° gauche' }, '2/d': { p: [230, 112], l: '45° droite' },
-    '3/cg': { p: [9, 18], l: 'corner gauche' }, '3/face': { p: [150, 176], l: 'face' }, '3/cd': { p: [291, 18], l: 'corner droit' },
+    '2/face': { p: [150, 134], l: 'face' }, '2/g': { p: [80, 104], l: '45° gauche' }, '2/d': { p: [220, 104], l: '45° droite' },
+    // 3 points : 5 positions juste derrière la ligne (corners, 45°, face)
+    '3/cg': { p: [9, 18], l: 'corner gauche' }, '3/ag': { p: [46, 136], l: '45° gauche' }, '3/face': { p: [150, 178], l: 'face' },
+    '3/ad': { p: [254, 136], l: '45° droite' }, '3/cd': { p: [291, 18], l: 'corner droit' },
     '4/js': { path: 'M150 178 L150 112', p: [150, 112], l: 'dribble, arrêt, tir' },
     '9/d': { path: 'M236 112 Q214 64 162 38', p: [236, 112], l: 'côté droit, 2 pas' }, '9/g': { path: 'M64 112 Q86 64 138 38', p: [64, 112], l: 'côté gauche, 2 pas' },
     '10/d': { path: 'M258 172 Q236 96 162 38', p: [258, 172], l: 'depuis la ligne à 3 points' }, '10/g': { path: 'M42 172 Q64 96 138 38', p: [42, 172], l: 'depuis la ligne à 3 points' },
