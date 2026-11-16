@@ -1,6 +1,6 @@
-// Service worker : tout le site est gardé dans le téléphone au premier chargement, l'app marche ensuite sans réseau.
-// Quand un fichier de l'app change, change CACHE (basket-v3, v4...) pour forcer la mise à jour.
-const CACHE = 'basket-v3';
+// Service worker : l'app marche sans réseau (tout est gardé dans le téléphone),
+// mais quand il y a du réseau elle prend toujours la dernière version (réseau d'abord, cache si pas de réseau ou trop lent).
+const CACHE = 'basket-v4';
 const FILES = ['./', './index.html', './css/app.css', './js/data.js', './js/ui.js', './js/home.js', './js/seance.js', './js/progres.js', './js/reglages.js', './js/app.js',
   './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
@@ -14,7 +14,17 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit ||
-    fetch(e.request).catch(() => caches.match('./index.html'))));
+  const req = e.request;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  // réseau d'abord, mais pas plus de 2,5 s (au gymnase le réseau est souvent mauvais) : sinon la copie du téléphone
+  e.respondWith((async () => {
+    const net = fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return res; });
+    try {
+      const first = await Promise.race([net, new Promise(r => setTimeout(r, 2500, 'lent'))]);
+      if (first !== 'lent') return first;
+      return (await caches.match(req, { ignoreSearch: true })) || await net;
+    } catch (err) {
+      return (await caches.match(req, { ignoreSearch: true })) || (await caches.match('./index.html'));
+    }
+  })());
 });

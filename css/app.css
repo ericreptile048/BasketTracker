@@ -25,6 +25,10 @@
 html,body{background:var(--bg);color:var(--tx);font-family:-apple-system,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none;overscroll-behavior-y:none}
 body{min-height:100dvh}
+/* jamais de scroll horizontal : les halos dépassent exprès, on les coupe au bord de l'écran
+   (clip et pas hidden sur #view : ça ne crée pas de zone de défilement en plus) */
+html,body{overflow-x:hidden;max-width:100%}
+#view{overflow-x:clip}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
 svg{display:block}
 em{font-style:normal;color:var(--ok);font-weight:700}
@@ -345,7 +349,7 @@ h1{font-size:36px;font-weight:800;letter-spacing:-.8px}
 /* fiche d'un item */
 .back{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .25s var(--ease);z-index:40}
 .back.on{opacity:1;pointer-events:auto}
-.sheet{position:fixed;left:0;right:0;bottom:0;max-width:430px;margin:0 auto;max-height:90dvh;overflow:auto;background:var(--panel);border-radius:26px 26px 0 0;isolation:isolate;
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:430px;margin:0 auto;max-height:90dvh;overflow-y:auto;overflow-x:hidden;background:var(--panel);border-radius:26px 26px 0 0;isolation:isolate;
   padding:10px 18px calc(env(safe-area-inset-bottom) + 24px);transform:translateY(105%);transition:transform .42s var(--ease);z-index:41}
 .sheet.on{transform:none}
 .sheet::before{content:"";position:absolute;left:-40px;right:-40px;top:-120px;height:260px;background:radial-gradient(closest-side,color-mix(in srgb,var(--c) 30%,transparent),transparent);pointer-events:none;z-index:-1}
