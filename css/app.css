@@ -468,4 +468,9 @@ html.fade,html.fade *{transition:background-color .35s var(--ease),color .35s va
 .score .best .prov{font-style:normal;font-size:11.5px;margin-left:4px;padding:1px 6px;border-radius:8px;border:1px dashed var(--gold)}
 .tagline span.live{color:var(--gold);box-shadow:inset 0 0 0 1.5px var(--gold)}
 .tagline span.live b{color:var(--gold)}
+/* item validé = doré (le vert reste « test réussi à cette séance ») */
+.it.ok{background:color-mix(in srgb,var(--gold) 16%,var(--card))}
+.pst.ok,.stt.ok{color:var(--gold);background:color-mix(in srgb,var(--gold) 16%,transparent)}
+.won div{background:color-mix(in srgb,var(--gold) 16%,var(--card))}
+.won span{background:var(--gold);color:#1a1300}.won small{color:var(--gold)}
 .sdone{margin-top:10px;text-align:center;font-size:13.5px;color:var(--sx)}.sdone b{color:var(--tx);font-variant-numeric:tabular-nums}

@@ -29,14 +29,14 @@
     clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), ms);
   }
 
-  // Mini-anneau d'un item (accueil). p = 0..1, ou null (suivi, sans objectif) · fc = la couleur de sa famille (vert seulement une fois validé)
+  // Mini-anneau d'un item (accueil). p = 0..1, ou null (suivi, sans objectif) · fc = la couleur de sa famille (doré une fois validé)
   function miniRing(p, st, i, fc) {
-    const r = 19, c = 2 * Math.PI * r, col = st === 'ok' ? 'var(--ok)' : fc || 'var(--ball)';
+    const r = 19, c = 2 * Math.PI * r, col = st === 'ok' ? 'var(--gold)' : fc || 'var(--ball)';
     const off = c * (1 - (p === null ? 0 : p));
     return `<svg viewBox="0 0 46 46" style="transform:rotate(-90deg)"><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--card-hi)" stroke-width="5"/>
       <circle class="arc" cx="23" cy="23" r="${r}" fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${p === null ? '3 6' : c}"
        stroke-dashoffset="${p === null ? 0 : c}" data-off="${off}" style="transition-delay:${300 + i * 40}ms"/>
-      ${st === 'ok' ? '<path d="M16 23.5l5 5 9-10" fill="none" stroke="var(--ok)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="rotate(90 23 23)"/>' : ''}</svg>`;
+      ${st === 'ok' ? '<path d="M16 23.5l5 5 9-10" fill="none" stroke="var(--gold)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="rotate(90 23 23)"/>' : ''}</svg>`;
   }
   // Lance les anneaux une fois dans la page (setTimeout : un double requestAnimationFrame ne suffit pas quand la page est en arrière-plan)
   function drawRings(scope = document) { setTimeout(() => scope.querySelectorAll('.arc[data-off]').forEach(e => e.style.strokeDashoffset = e.dataset.off), 60); }

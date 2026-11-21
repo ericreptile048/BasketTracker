@@ -109,7 +109,7 @@
     if (old) { const same = +old.dataset.id === id; old.remove(); grid.querySelectorAll('.it.sel').forEach(x => x.classList.remove('sel')); if (same) return; }
     const it = B.ITEM(id), I = body(data, it);
     const el = document.createElement('div'); el.className = 'ipop'; el.dataset.id = id;
-    el.style.setProperty('--pc', I.S.st === 'ok' ? 'var(--ok)' : I.S.st === 'half' ? 'var(--warn)' : COL[it.f]);
+    el.style.setProperty('--pc', I.S.st === 'ok' ? 'var(--gold)' : I.S.st === 'half' ? 'var(--warn)' : COL[it.f]);
     el.innerHTML = `<div class="ph"><b>${it.n}</b><span class="pst ${I.S.st}">${I.stTxt}</span></div>
       <div class="pg">Test : ${it.goal}</div>${I.html}<i class="arw"></i>`;
     grid.appendChild(el); btn.classList.add('sel');
