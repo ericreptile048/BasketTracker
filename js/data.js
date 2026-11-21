@@ -8,7 +8,8 @@
   const TOTAL = 26;                            // 2 séances par semaine sur 13 semaines
 
   // ---------- Les 12 items (liste fermée, note du vault) + le sprint suivi ----------
-  // t : 'hi' = paniers sur 10 (seuil g) · 'lo' = pertes sur 10 (0 = réussi) · 'time' = chrono suivi · 'done' = fait/pas fait · 'manual'
+  // t : 'hi' = paniers sur 10 (seuil g) · 'lo' = moves de dribble, saisis et stockés en RÉUSSIS sur 10 (10 = 0 perte = test réussi)
+  //     · 'time' = chrono suivi (moins = mieux) · 'done' · 'manual'
   // sub : les variantes (spots, côtés, niveaux). need : les variantes qui comptent pour le test.
   const MOVES = [['imm', 'immobile'], ['walk', 'marche'], ['run', 'course']];
   const ITEMS = [
@@ -18,29 +19,51 @@
     { id: 3, n: '3 points', short: '3 points', f: 'tir', t: 'hi', g: 3, goal: '3/10 à chaque spot (4 = bonus)',
       sub: [['cg', 'corner G'], ['ag', '45° G'], ['face', 'face'], ['ad', '45° D'], ['cd', 'corner D']] },
     { id: 4, n: 'Jump stop + tir', short: 'Jump stop', f: 'tir', t: 'hi', g: 5, goal: '5/10' },
-    { id: 5, n: 'Slalom main faible', short: 'Slalom', f: 'drib', t: 'time', goal: 'suivi : meilleur temps et pertes' },
-    { id: 6, n: 'Crossover', short: 'Crossover', f: 'drib', t: 'lo', goal: '0 perte en marchant et en courant', sub: MOVES, need: ['walk', 'run'] },
-    { id: 7, n: 'Entre les jambes', short: 'Entre jambes', f: 'drib', t: 'lo', goal: '0 perte en marchant et en courant', sub: MOVES, need: ['walk', 'run'] },
-    { id: 8, n: 'Derrière le dos', short: 'Derrière dos', f: 'drib', t: 'lo', goal: '0 perte en marchant et en courant', sub: MOVES, need: ['walk', 'run'] },
+    // slalom (depuis le 21/11) : 6 plots à 1 pas, un passage = 3 allers-retours ; 1 passage main droite puis 3 main gauche
+    { id: 5, n: 'Slalom main gauche', short: 'Slalom G', f: 'drib', t: 'time', key: 'gauche', goal: 'suivi : meilleur temps et pertes · 6 plots à 1 pas, 3 allers-retours' },
+    { id: 6, n: 'Crossover', short: 'Crossover', f: 'drib', t: 'lo', g: 10, goal: '10/10 réussis (0 perte) en marchant et en courant', sub: MOVES, need: ['walk', 'run'] },
+    { id: 7, n: 'Entre les jambes', short: 'Entre jambes', f: 'drib', t: 'lo', g: 10, goal: '10/10 réussis (0 perte) en marchant et en courant', sub: MOVES, need: ['walk', 'run'] },
+    { id: 8, n: 'Derrière le dos', short: 'Derrière dos', f: 'drib', t: 'lo', g: 10, goal: '10/10 réussis (0 perte) en marchant et en courant', sub: MOVES, need: ['walk', 'run'] },
     { id: 9, n: 'Layup balle en main', short: 'Layup main', f: 'fin', t: 'hi', g: 9, goal: '9/10 de chaque côté', sub: [['d', 'droite'], ['g', 'gauche']] },
     { id: 10, n: 'Layup vitesse de jeu', short: 'Layup vitesse', f: 'fin', t: 'hi', g: 9, goal: '9/10 de chaque côté', sub: [['d', 'droite'], ['g', 'gauche']] },
     { id: 11, n: 'Défense', short: 'Défense', f: 'gen', t: 'done', goal: '1 min de pas chassés dans l\'échauffement, 2 séances' },
     { id: 12, n: 'Règles et rôle d\'ailier', short: 'Ailier', f: 'gen', t: 'manual', goal: 'la vidéo d\'1 h, puis les 3 occasions de l\'ailier en 3 phrases' },
     { id: 13, n: 'Sprint demi-terrain', short: 'Sprint ½', f: 'sprint', t: 'time', m: 28, key: 'half', goal: 'suivi : aller-retour ~28 m' },
     { id: 14, n: 'Sprint terrain entier', short: 'Sprint entier', f: 'sprint', t: 'time', m: 56, key: 'full', goal: 'suivi : aller-retour ~56 m' },
+    // hors des 12 items (liste fermée) : suivis en temps, comme les sprints
+    { id: 15, n: 'Slalom main droite', short: 'Slalom D', f: 'drib', t: 'time', key: 'droite', goal: 'suivi : meilleur temps · 6 plots à 1 pas, 3 allers-retours' },
+    // archive : l'ancien format, gardé dans l'historique mais pas comparable au nouveau (aucune conversion)
+    { id: 16, n: 'Ancien slalom (5 bouteilles)', short: 'Slalom (ancien)', f: 'drib', t: 'time', key: 'slalom', old: true, goal: 'archive : 5 bouteilles, 1 aller-retour main gauche (jusqu\'au 19/11)' },
   ];
   const ITEM = id => ITEMS.find(i => i.id === id);
+  // Le sens d'un score : seuls les temps vont « moins = mieux » (les moves stockent des réussies).
+  const lowGood = it => it.t === 'time';
+  const better = (it, a, b) => (lowGood(it) ? a < b : a > b);
+  const top = (it, vals) => (lowGood(it) ? Math.min(...vals) : Math.max(...vals));
   const LIST12 = ITEMS.filter(i => i.id <= 12);
 
   // ---------- Stockage ----------
-  const blank = () => ({ v: 2, sessions: [], current: null, manual: {}, settings: { sound: true, wake: true, dist: 'half', theme: 'dark' }, lastExport: null });
+  // mig : le niveau de migration des données (voir migrate)
+  const MIG = 1;
+  const blank = () => ({ v: 2, mig: MIG, sessions: [], current: null, manual: {}, settings: { sound: true, wake: true, dist: 'half', theme: 'dark' }, lastExport: null });
   let mem = null; // repli si localStorage est indisponible (tests node, navigation privée)
+  // Migrations, dans l'ordre, une seule fois chacune :
+  // 1 (21/11) : l'ancien slalom (item 5, clé 'slalom' : 5 bouteilles, 1 aller-retour) part en archive (item 16), sans conversion.
+  //   Les moves n'ont rien à migrer : l'ancien écran stockait déjà 10 − la saisie, c'est-à-dire les réussis.
+  function migrate(d) {
+    if ((d.mig || 0) < 1) {
+      const fix = res => res.forEach(r => { if (r.item === 5 && r.key === 'slalom') r.item = 16; });
+      d.sessions.forEach(s => fix(s.res)); if (d.current) fix(d.current.res);
+    }
+    d.mig = MIG;
+    return d;
+  }
   function load(store) {
     let d = null;
     try { d = JSON.parse((store || root.localStorage).getItem(KEY)); } catch (e) { d = mem; }
     const b = blank();
     if (!d || d.v !== 2) return b;
-    return Object.assign(b, d, { settings: Object.assign(b.settings, d.settings || {}), manual: d.manual || {} });
+    return migrate(Object.assign(b, d, { mig: d.mig || 0, settings: Object.assign(b.settings, d.settings || {}), manual: d.manual || {} }));
   }
   function save(data, store) {
     try { (store || root.localStorage).setItem(KEY, JSON.stringify(data)); return true; }
@@ -66,11 +89,11 @@
       it.sub.forEach(([k]) => { const e = entries(s, it.id, k); if (e.length) subs[k] = e[e.length - 1].v; });
       const keys = Object.keys(subs); if (!keys.length) return null;
       let pass;
-      if (it.t === 'lo') pass = it.need.every(k => subs[k] === 0);
+      if (it.t === 'lo') pass = it.need.every(k => subs[k] === it.g);
       else if (it.id === 3) pass = keys.length >= 2 && keys.every(k => subs[k] >= it.g);     // 2 spots par séance, en rotation
       else pass = it.sub.every(([k]) => subs[k] !== undefined && subs[k] >= it.g);
       const vals = keys.map(k => subs[k]);
-      return { val: it.t === 'lo' ? (subs.walk ?? 10) + (subs.run ?? 10) : mean(vals), pass, subs };
+      return { val: mean(vals), pass, subs };
     }
     const e = entries(s, it.id); if (!e.length) return null;
     const a = e.map(x => x.v), m = mean(a);
@@ -94,7 +117,7 @@
   // Le statut d'une variante (un niveau de move, un spot, un côté), même règle des 2 de suite.
   function subStatus(data, it, key) {
     const ok = sorted(data).map(s => entries(s, it.id, key)).filter(e => e.length).map(e => {
-      const v = e[e.length - 1].v; return it.t === 'lo' ? v === 0 : v >= it.g; });
+      const v = e[e.length - 1].v; return v >= it.g; });
     if (twoInARow(ok) >= 0) return 'ok';
     return ok.length && ok[ok.length - 1] ? 'half' : 'todo';
   }
@@ -125,7 +148,7 @@
     // moves : un tiers par niveau (immobile, marche, course) ; le niveau en cours compte pour ses réussies sur 10
     if (it.t === 'lo') { const lv = it.sub.map(([k]) => subStatus(data, it, k)), cur = lv.findIndex(x => x !== 'ok');
       if (cur < 0) return 1;
-      const v = lastSub(data, it, it.sub[cur][0]); return (cur + (v === null ? 0 : (10 - v) / 10)) / it.sub.length; }
+      const v = lastSub(data, it, it.sub[cur][0]); return (cur + (v === null ? 0 : v / it.g)) / it.sub.length; }
     if (it.id === 3) { // 3 points : la moyenne des spots déjà tirés (on n'en tire que 2 sur 5 par séance)
       const v = it.sub.map(([k]) => lastSub(data, it, k)).filter(x => x !== null);
       return v.length ? mean(v.map(x => Math.min(1, x / it.g))) : 0; }
@@ -141,17 +164,31 @@
 
   // Les records : le meilleur score d'une variante (ou de l'item), et si une séance en a battu un.
   function best(data, it, key, before) {
-    const hi = it.t === 'hi', vals = [];
+    const vals = [];
     sorted(data).forEach(s => { if (before !== undefined && s.start >= before) return;
       entries(s, it.id, key).forEach(e => vals.push(e.v)); });
-    if (!vals.length) return null;
-    return hi ? Math.max(...vals) : Math.min(...vals);
+    return vals.length ? top(it, vals) : null;
   }
   function isRecord(data, it, key, s) {
     const prev = best(data, it, key, s.start); if (prev === null) return false; // la 1re fois n'est pas un record
     const e = entries(s, it.id, key); if (!e.length) return false;
-    const v = it.t === 'hi' ? Math.max(...e.map(x => x.v)) : Math.min(...e.map(x => x.v));
-    return it.t === 'hi' ? v > prev : v < prev;
+    return better(it, top(it, e.map(x => x.v)), prev);
+  }
+  // Le record provisoire : pendant une séance, les séries déjà notées comptent tout de suite.
+  // Calculé à chaque lecture depuis data.current.res : revenir en arrière (stepBack enlève les séries) ou abandonner le fait
+  // disparaître tout seul, et rien n'est écrit dans data.sessions avant « Terminer ».
+  // → { v, live } : v = le record à afficher (null = aucun) ; live = il vient de la séance en cours ; saved = l'ancien record.
+  function liveBest(data, it, key) {
+    const saved = best(data, it, key), c = data.current;
+    const cur = c ? c.res.filter(r => r.item === it.id && (key === undefined || r.key === key)).map(r => r.v) : [];
+    if (!cur.length) return { v: saved, live: false, saved };
+    const cb = top(it, cur);
+    return saved === null || better(it, cb, saved) ? { v: cb, live: true, saved } : { v: saved, live: false, saved };
+  }
+  // La dernière valeur connue, séance en cours comprise.
+  function liveLast(data, it, key) {
+    const c = data.current, cur = c ? c.res.filter(r => r.item === it.id && (key === undefined || r.key === key)) : [];
+    return cur.length ? cur[cur.length - 1].v : lastSub(data, it, key);
   }
 
   // ---------- Le programme ----------
@@ -214,8 +251,11 @@
       sc(9, 'd', 'Layup · main droite', '10 layups balle en main · pied de saut <b>gauche</b>');
       sc(9, 'g', 'Layup · main gauche', '10 layups balle en main · pied de saut <b>droit</b>');
     } else {
-      for (let i = 1; i <= 4; i++) S.push({ kind: 'chrono', item: 5, key: 'slalom', sec: 'Dribble', f: 'drib', title: 'Slalom main faible', n: i,
-        sub: `Aller-retour <b>${i}/4</b> · 5 bouteilles, sans regarder le ballon` });
+      // slalom : 6 plots à 1 pas, 3 allers-retours par passage ; 1 main droite (référence), puis 3 main gauche (l'item 5)
+      S.push({ kind: 'chrono', item: 15, key: 'droite', sec: 'Dribble', f: 'drib', title: 'Slalom main droite', n: 1,
+        sub: `<b>Main droite</b> · 3 allers-retours · 6 plots à 1 pas, sans regarder le ballon` });
+      for (let i = 1; i <= 3; i++) S.push({ kind: 'chrono', item: 5, key: 'gauche', sec: 'Dribble', f: 'drib', title: 'Slalom main gauche', n: i,
+        sub: `<b>Main gauche</b> · passage <b>${i}/3</b> · 3 allers-retours · 6 plots à 1 pas, sans regarder le ballon` });
       [6, 7, 8].forEach(id => moveLevels(data, ITEM(id)).forEach(l => sc(id, l.key, ITEM(id).n, (l.role === 'test'
         ? `<b>${cap(lab(id, l.key))}</b> · niveau en cours · 10 répétitions, tête haute`
         : `<b>${cap(lab(id, l.key))}</b> · entretien · 10 répétitions`), { role: l.role })));
@@ -240,17 +280,18 @@
 
   // ---------- Export / import ----------
   function exportJSON(data, now = Date.now()) {
-    return JSON.stringify({ app: 'basket', v: 2, exported: new Date(now).toISOString(), sessions: data.sessions, manual: data.manual, settings: data.settings });
+    return JSON.stringify({ app: 'basket', v: 2, mig: data.mig, exported: new Date(now).toISOString(), sessions: data.sessions, manual: data.manual, settings: data.settings });
   }
   function importJSON(data, txt) {
     const d = JSON.parse(txt);
     if (d.app !== 'basket' || d.v !== 2 || !Array.isArray(d.sessions)) throw new Error('format');
     data.sessions = d.sessions; data.manual = d.manual || {}; data.settings = Object.assign(blank().settings, d.settings || {});
+    const cur = data.current; data.current = null; data.mig = d.mig || 0; migrate(data); data.current = cur; // un vieil export se migre aussi
     return data.sessions.length;
   }
 
-  const B = { KEY, GOAL, START, TOTAL, ITEMS, ITEM, LIST12, MOVES, blank, load, save, sorted, entries, evalItem, history, status, subStatus,
-    lastSub, moveLevels, progress, best, isRecord, nextType, doneToday, daysLeft, pick3pt, startSession, record, elapsed,
+  const B = { KEY, GOAL, MIG, migrate, START, TOTAL, ITEMS, ITEM, LIST12, MOVES, blank, load, save, sorted, entries, evalItem, history, status, subStatus,
+    lastSub, moveLevels, progress, best, isRecord, liveBest, liveLast, lowGood, nextType, doneToday, daysLeft, pick3pt, startSession, record, elapsed,
     finishSession, abandon, exportJSON, importJSON, dayKey, WARM, buildSteps, stepBack, progressAt, TYPE_ITEMS };
   if (typeof module !== 'undefined' && module.exports) module.exports = B; else root.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);

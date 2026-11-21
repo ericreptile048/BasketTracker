@@ -29,9 +29,9 @@
     clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), ms);
   }
 
-  // Mini-anneau d'un item (accueil). p = 0..1, ou null (suivi, sans objectif)
-  function miniRing(p, st, i) {
-    const r = 19, c = 2 * Math.PI * r, col = st === 'ok' ? 'var(--ok)' : st === 'half' ? 'var(--warn)' : p === null ? 'var(--blue)' : 'var(--ball)';
+  // Mini-anneau d'un item (accueil). p = 0..1, ou null (suivi, sans objectif) · fc = la couleur de sa famille (vert seulement une fois validé)
+  function miniRing(p, st, i, fc) {
+    const r = 19, c = 2 * Math.PI * r, col = st === 'ok' ? 'var(--ok)' : fc || 'var(--ball)';
     const off = c * (1 - (p === null ? 0 : p));
     return `<svg viewBox="0 0 46 46" style="transform:rotate(-90deg)"><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--card-hi)" stroke-width="5"/>
       <circle class="arc" cx="23" cy="23" r="${r}" fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${p === null ? '3 6' : c}"

@@ -52,14 +52,14 @@
       if (b.sprint) { const h = B.best(d, B.ITEM(13), 'half'), fu = B.best(d, B.ITEM(14), 'full');
         return h === null && fu === null ? 'pas encore de record' : [h !== null ? `½ terrain <em>${f1(h)} s</em>` : '', fu !== null ? `entier <em>${f1(fu)} s</em>` : ''].filter(Boolean).join(' · '); }
       const it = B.ITEM(b.item);
-      if (it.t === 'time') { const v = B.best(d, it, 'slalom'); return v === null ? 'pas encore de record' : `record <em>${f1(v)} s</em>`; }
+      if (it.t === 'time') { const v = B.best(d, it, it.key); return v === null ? 'pas encore de record' : `record <em>${f1(v)} s</em>`; }
       if (it.sub) { const keys = S.filter(x => x.item === b.item).map(x => x.key); const parts = [...new Set(keys)].map(k => {
           const v = B.best(d, it, k); if (v === null) return null; const l = it.sub.find(x => x[0] === k)[1];
-          return it.t === 'lo' ? `<span class="lvi">${ICON[k]}<em>${10 - v}/10</em></span>` : `${l} <em>${v}</em>`; }).filter(Boolean);
+          return it.t === 'lo' ? `<span class="lvi">${ICON[k]}<em>${v}/10</em></span>` : `${l} <em>${v}</em>`; }).filter(Boolean);
         return parts.length ? (it.t === 'lo' ? 'record ' + parts.join('') : 'record ' + parts.join(' · ')) : 'pas encore de record'; }
       const v = B.best(d, it); return v === null ? 'pas encore de record' : `record <em>${v}/10</em>`;
     };
-    const qty = b => b.sprint ? '3 × aller-retour' : b.item === 5 ? '4 aller-retour' : b.item === 1 ? '3 × 10' : b.item === 3 ? '2 spots × 10'
+    const qty = b => b.sprint ? '3 × aller-retour' : b.item === 5 ? '3 × 3 allers-retours' : b.item === 15 ? '1 × 3 allers-retours' : b.item === 1 ? '3 × 10' : b.item === 3 ? '2 spots × 10'
       : b.item === 2 ? '3 spots × 10' : [9, 10].includes(b.item) ? '10 + 10' : B.ITEM(b.item).t === 'lo' ? `${b.n} série${b.n > 1 ? 's' : ''}` : '10 tirs';
     const name = b => b.sprint ? 'Sprints' : B.ITEM(b.item).n;
     return `<div class="screen">${head({ sec: 'Séance ' + type, title: type === 'A' ? 'Tir et finition' : 'Dribble, finition, sprint' }, 0, 1, COL.brief)}
@@ -133,8 +133,18 @@
     '9/d': { path: 'M236 112 Q214 64 162 38', p: [236, 112], l: 'côté droit, 2 pas' }, '9/g': { path: 'M64 112 Q86 64 138 38', p: [64, 112], l: 'côté gauche, 2 pas' },
     '10/d': { path: 'M258 172 Q236 96 162 38', p: [258, 172], l: 'depuis la ligne à 3 points' }, '10/g': { path: 'M42 172 Q64 96 138 38', p: [42, 172], l: 'depuis la ligne à 3 points' },
   };
+  // Jump stop : il sert partout, pas seulement aux lancers. Même distance du panier que la ligne des lancers (80 px = 4 m),
+  // direction au hasard (de −75° à +75° autour de l'axe), départ 3,3 m plus loin sur la même ligne.
+  // Le hasard dépend du début de la séance : un refresh garde la même position.
+  function jumpSpot() {
+    const c = D().current, seed = c ? c.start : Math.floor(Date.now() / 864e5);
+    const r = (Math.sin(seed % 100000 * 12.9898) * 43758.5453) % 1, a = (Math.abs(r) * 150 - 75) * Math.PI / 180;
+    const pt = d => [150 + d * Math.sin(a), 32 + d * Math.cos(a)].map(x => Math.round(x));
+    const [x1, y1] = pt(146), [x2, y2] = pt(80);
+    return { path: `M${x1} ${y1} L${x2} ${y2}`, p: [x2, y2], l: 'dribble, arrêt, tir', ball: true };
+  }
   function courtMap(st) {
-    const s = SPOT[st.item + '/' + st.key]; if (!s) return '';
+    const s = st.item === 4 ? jumpSpot() : SPOT[st.item + '/' + st.key]; if (!s) return '';
     const L = 'stroke="var(--mut)" stroke-width="2.5" fill="none"';
     // un vrai demi-terrain (15 m × 14 m) : carré, sans fond, juste les lignes et l'indicateur
     return `<svg class="map" viewBox="-4 -4 308 292" aria-label="${s.l}">
@@ -143,20 +153,24 @@
       <path d="M18 0V60A135 135 0 0 0 282 60V0" ${L}/><path d="M136 24h28" stroke="var(--sx)" stroke-width="3.5"/><circle cx="150" cy="32" r="8" stroke="var(--ball)" stroke-width="3" fill="none"/>
       ${s.path ? `<path class="mpath" d="${s.path}" stroke="var(--sc)" stroke-width="4" stroke-linecap="round" fill="none" stroke-dasharray="7 7"/>` : ''}
       <circle class="mping" cx="${s.p[0]}" cy="${s.p[1]}" r="12" fill="var(--sc)"/><circle cx="${s.p[0]}" cy="${s.p[1]}" r="11" fill="var(--sc)" stroke="var(--bg)" stroke-width="3"/>
+      ${s.ball ? `<circle r="7" fill="var(--ball)" stroke="var(--bg)" stroke-width="2"><animateMotion dur="1.8s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;.7;1" calcMode="linear" path="${s.path}"/></circle>` : ''}
     </svg>`;
   }
 
   // ---------- 3. Score : colonne de 10 ronds, de haut en bas ----------
-  // Moves : on compte les répétitions réussies (10 − pertes), comme partout ailleurs ; on enregistre les pertes.
+  // Moves : on saisit et on enregistre les réussis sur 10 (les ronds touchés = les répétitions sans perte), comme partout ailleurs.
   let SC = null;
+  // le record affiché pendant l'exo : celui des séances enregistrées, ou celui de la séance en cours s'il est meilleur
+  const recBadge = (r, fmt) => r.v === null ? 'pas encore de record'
+    : r.live ? `record provisoire : ${fmt(r.v)} <i class="prov">cette séance</i>` : `record : ${fmt(r.v)}`;
   function vScore(st, idx, n) {
-    const it = B.ITEM(st.item), lo = st.lo, rec = B.best(D(), it, st.key), col = colOf(st), map = courtMap(st);
-    const recTxt = rec === null ? 'pas encore de record' : lo ? `record : ${10 - rec}/10` : `record : ${rec}/10`;
+    const it = B.ITEM(st.item), lo = st.lo, rec = B.liveBest(D(), it, st.key), col = colOf(st), map = courtMap(st);
+    const recTxt = recBadge(rec, v => `${f1(v)}/10${lo ? ' réussis' : ''}`);
     const icon = lo ? `<span class="lvbig">${ICON[st.key]}</span>` : '';
     return `<div class="screen" style="--sc:${col}">${head(st, idx, n, col)}
       <p class="sub">${icon}${st.sub}</p>
       <div class="scorewrap ${map ? 'withmap' : ''}"><div class="score">${map ? `<div class="mapbox">${map}</div>` : ''}<div class="n" id="sn"><span class="q">?</span><small>/10</small></div>
-        <div class="lbl" id="sl">${lo ? 'Réussies sans perte ?' : 'Touche le rond de ton score'}</div><span class="best">${recTxt}</span>
+        <div class="lbl" id="sl">${lo ? 'Combien de réussis sans perte ?' : 'Touche le rond de ton score'}</div><span class="best ${rec.live ? 'live' : ''}">${recTxt}</span>
         <div><button class="zero ${lo ? 'good' : ''}" data-sact="zero">${lo ? '10/10, 0 perte ✓' : '0 panier'}</button></div></div>
         <div class="col" id="col">${Array.from({ length: 10 }, (_, i) => `<div class="r" data-n="${i + 1}">${i + 1}</div>`).join('')}</div></div>
       <div class="cta"><button class="big-btn" id="val" style="opacity:.35"><div class="fill" id="fill"></div><span id="vl">Valider</span></button></div></div>`;
@@ -166,13 +180,14 @@
     const pick = e => { const el = document.elementFromPoint(e.clientX, e.clientY), r = el && el.closest('.r'); if (r && +r.dataset.n !== SC) setScore(st, +r.dataset.n); };
     col.addEventListener('pointerdown', e => { initAudio(); col.setPointerCapture(e.pointerId); pick(e); });
     col.addEventListener('pointermove', e => { if (e.buttons) pick(e); });
-    mScore.set = n => setScore(st, st.lo ? 10 : 0); // le bouton : 10/10 sans perte (moves) ou 0 panier
+    mScore.set = () => setScore(st, st.lo ? 10 : 0); // le bouton : 10/10 sans perte (moves) ou 0 panier
   }
+  // n = les ronds touchés : des paniers (tirs) ou des réussis (moves)
   function setScore(st, n) {
     const old = SC || 0, it = B.ITEM(st.item), lo = st.lo; SC = n;
     document.querySelectorAll('.r').forEach((r, i) => { const on = i < n; r.classList.toggle('on', on);
       if (on && i >= old) { r.style.animationDelay = ((i - old) * 28) + 'ms'; r.classList.remove('pop'); void r.offsetWidth; r.classList.add('pop'); } });
-    const good = lo ? n === 10 : n >= it.g, loss = 10 - n;
+    const good = n >= it.g, loss = 10 - n;
     $('#sn').innerHTML = n + '<small>/10</small>'; $('#sn').style.color = good ? 'var(--ok)' : '';
     $('#sl').textContent = good ? (lo ? 'Parfait, 0 perte ✓' : 'Test réussi ✓') : (lo ? `${loss} perte${loss > 1 ? 's' : ''} · objectif 10/10` : `Objectif : ${it.g}/10`);
     // le bouton se remplit en 1,5 s puis valide tout seul ; retoucher la colonne relance
@@ -186,7 +201,7 @@
   }
   function commit(st, n) {
     T.forEach(t => clearTimeout(t)); T = [];
-    B.record(D(), { item: st.item, key: st.key, v: st.lo ? 10 - n : n, s: D().current.step }); BIP.ok(); // moves : on garde les pertes
+    B.record(D(), { item: st.item, key: st.key, v: n, s: D().current.step }); BIP.ok(); // tirs : paniers · moves : réussis
     $('#vl').textContent = 'Enregistré ✓';
     const rs = [...document.querySelectorAll('.r.on')]; rs.forEach((r, i) => { r.classList.remove('wave', 'pop'); r.style.animationDelay = (i * 45) + 'ms'; void r.offsetWidth; r.classList.add('wave'); });
     setTimeout(next, 650);
@@ -198,16 +213,20 @@
     const col = colOf(st), d = D();
     let top = '';
     if (st.sprint) {
-      const k = d.settings.dist, ds = DIST[k], it = B.ITEM(ds.item), rec = B.best(d, it, k), last = B.lastSub(d, it, k);
+      const k = d.settings.dist, ds = DIST[k], it = B.ITEM(ds.item), rec = B.liveBest(d, it, k), last = B.liveLast(d, it, k);
+      // les sprints déjà courus dans cette séance, chacun avec sa distance (demi et entier ne se mélangent pas)
+      const done = d.current ? d.current.res.filter(r => r.item === 13 || r.item === 14) : [];
+      const doneTxt = done.length ? `<p class="sdone">Cette séance : ${done.map(r => `${r.key === 'half' ? '½' : 'entier'} <b>${f1(r.v)} s</b>`).join(' · ')}</p>` : '';
       top = `<p class="sub">Le téléphone reste <b>sur la ligne de fond</b>. GO : tu cours jusqu'à <b>${ds.to}</b>, tu reviens, tu tapes <b>STOP</b>.</p>
         <div class="dseg" id="dseg"><div class="pill" style="transform:translateX(${k === 'full' ? 100 : 0}%)"></div>${Object.entries(DIST).map(([kk, x]) =>
           `<button data-sact="dist" data-k="${kk}" class="${kk === k ? 'on' : ''}"><b>${x.n}</b><small>aller-retour · ~${x.m} m</small></button>`).join('')}</div>
-        <div class="tagline"><span>record<b>${rec === null ? '—' : f1(rec) + ' s'}</b></span><span>dernier<b>${last === null ? '—' : f1(last) + ' s'}</b></span>
-        <span>vitesse<b>${rec === null ? '—' : f1(ds.m / rec * 3.6) + ' km/h'}</b></span></div>`;
+        <div class="tagline"><span class="${rec.live ? 'live' : ''}">${rec.live ? 'record provisoire' : 'record'}<b>${rec.v === null ? '—' : f1(rec.v) + ' s'}</b></span><span>dernier<b>${last === null ? '—' : f1(last) + ' s'}</b></span>
+        <span>vitesse<b>${rec.v === null ? '—' : f1(ds.m / rec.v * 3.6) + ' km/h'}</b></span></div>${doneTxt}`;
     } else {
-      const rec = B.best(d, B.ITEM(5), 'slalom');
+      // slalom : main droite (temps seul) ou main gauche (temps + pertes)
+      const rec = B.liveBest(d, B.ITEM(st.item), st.key), left = st.key === 'gauche';
       top = `<p class="sub">${st.sub}. Pose le téléphone <b>au départ</b> : tu reviens taper STOP.</p>
-        <div class="tagline"><span>record<b>${rec === null ? '—' : f1(rec) + ' s'}</b></span><span>main<b>faible</b></span><span>pertes<b>notées après</b></span></div>`;
+        <div class="tagline"><span class="${rec.live ? 'live' : ''}">${rec.live ? 'record provisoire' : 'record'}<b>${rec.v === null ? '—' : f1(rec.v) + ' s'}</b></span><span>main<b>${left ? 'gauche' : 'droite'}</b></span><span>${left ? 'pertes<b>notées après</b>' : 'pertes<b>non notées</b>'}</span></div>`;
     }
     return `<div class="screen" style="--sc:${col}">${head(st, idx, n, col)}${top}
       <div class="ringbox sm" id="crb"><svg viewBox="0 0 260 260"><circle class="tr" cx="130" cy="130" r="118"/><circle class="ar" id="car" cx="130" cy="130" r="118"/></svg>
@@ -243,22 +262,26 @@
   function result(st, v) {
     const idx = D().current.step, n = steps().length - 1, col = colOf(st);
     let info = '', loss = '';
-    if (st.sprint) { const k = D().settings.dist, ds = DIST[k], rec = B.best(D(), B.ITEM(ds.item), k);
-      info = `${ds.n} · <b>${f1(ds.m / v * 3.6)} km/h</b>${rec !== null ? ` · record ${f1(rec)} s` : ''}${rec !== null && v < rec ? ' · <b class="gold">🏆 record</b>' : ''}`; }
-    else { const rec = B.best(D(), B.ITEM(5), 'slalom'); info = rec !== null ? `record ${f1(rec)} s${v < rec ? ' · <b class="gold">🏆 record</b>' : ''}` : 'premier chrono';
-      loss = `<p class="lbl2">Pertes de balle ?</p><div class="losses">${[0, 1, 2, 3, 4, 5].map(i => `<button data-sact="loss" data-v="${i}" class="${i === 0 ? 'good' : ''}">${i}${i === 5 ? '+' : ''}</button>`).join('')}</div>`; }
+    // comparé au record provisoire : les séries déjà courues dans la séance comptent
+    const recInfo = (r, v) => r.v === null ? 'premier chrono' : `${r.live ? 'record provisoire' : 'record'} ${f1(r.v)} s${v < r.v ? ' · <b class="gold">🏆 nouveau record provisoire</b>' : ''}`;
+    if (st.sprint) { const k = D().settings.dist, ds = DIST[k], rec = B.liveBest(D(), B.ITEM(ds.item), k);
+      info = `${ds.n} · <b>${f1(ds.m / v * 3.6)} km/h</b> · ${recInfo(rec, v)}`; }
+    else { const rec = B.liveBest(D(), B.ITEM(st.item), st.key); info = recInfo(rec, v);
+      // main gauche : les pertes de balle sur les 3 allers-retours (0 à 10+)
+      if (st.key === 'gauche') loss = `<p class="lbl2">Pertes de balle ?</p><div class="losses">${Array.from({ length: 11 }, (_, i) => `<button data-sact="loss" data-v="${i}" class="${i === 0 ? 'good' : ''}">${i}${i === 10 ? '+' : ''}</button>`).join('')}</div>`; }
+    const auto = !loss; // sprint et main droite : rien à noter, on continue tout seul
     $('#view').innerHTML = `<div class="screen" style="--sc:${col}">${head(st, idx, n, col)}
       <div class="res"><div class="ck"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
       <div class="tm">${v.toFixed(2).replace('.', ',')} s</div><p class="sub">${info}</p></div>${loss}
-      <div class="cta">${st.sprint ? '<button class="big-btn" id="val"><div class="fill" id="fill"></div><span id="vl">Continuer · auto</span></button>' : ''}</div></div>`;
+      <div class="cta">${auto ? '<button class="big-btn" id="val"><div class="fill" id="fill"></div><span id="vl">Continuer · auto</span></button>' : ''}</div></div>`;
     result.v = v; result.st = st; result.on = true; // « Refaire (faux départ) » passe par la croix
-    if (st.sprint) { const f = $('#fill'); void f.offsetWidth; f.style.transition = 'width 3s linear'; f.style.width = '100%';
+    if (auto) { const f = $('#fill'); void f.offsetWidth; f.style.transition = 'width 3s linear'; f.style.width = '100%';
       const done = () => saveChrono(st, v); $('#val').onclick = done; T.push(setTimeout(done, 3000)); }
   }
   function saveChrono(st, v, loss) {
     T.forEach(t => clearTimeout(t)); T = [];
     if (st.sprint) { const k = D().settings.dist; B.record(D(), { item: DIST[k].item, key: k, v, s: D().current.step }); }
-    else B.record(D(), { item: 5, key: 'slalom', v, loss, s: D().current.step });
+    else B.record(D(), Object.assign({ item: st.item, key: st.key, v, s: D().current.step }, loss === undefined ? {} : { loss }));
     next();
   }
 
@@ -294,7 +317,7 @@
       <div class="res"><div class="ck big"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
       <div class="ttl">Séance ${s.type} faite</div><p class="sub">${min} min · ${s.res.length} score${s.res.length > 1 ? 's' : ''} noté${s.res.length > 1 ? 's' : ''}</p></div>
       ${gained.length ? `<div class="won">${gained.map(it => `<div><span>✓</span><b>${it.n}</b><small>validé !</small></div>`).join('')}</div>` : ''}
-      ${recs.length ? `<div class="recs"><h4>🏆 ${recs.length} record${recs.length > 1 ? 's' : ''}</h4>${recs.map(({ it, r }) => `<div><span>${it.n}${it.sub ? ' · ' + it.sub.find(x => x[0] === r.key)[1] : ''}</span><b>${it.t === 'time' ? f1(r.v) + ' s' : it.t === 'lo' ? r.v + (r.v > 1 ? ' pertes' : ' perte') : r.v + '/10'}</b></div>`).join('')}</div>`
+      ${recs.length ? `<div class="recs"><h4>🏆 ${recs.length} record${recs.length > 1 ? 's' : ''}</h4>${recs.map(({ it, r }) => `<div><span>${it.n}${it.sub ? ' · ' + it.sub.find(x => x[0] === r.key)[1] : ''}</span><b>${it.t === 'time' ? f1(B.best(d, it, r.key)) + ' s' : B.best(d, it, r.key) + '/10' + (it.t === 'lo' ? ' réussis' : '')}</b></div>`).join('')}</div>`
         : '<p class="sub" style="text-align:center">Pas de record cette fois. La régularité, c\'est ça qui valide.</p>'}
       ${typeChart(d, s.type)}
       <div class="cta"><button class="big-btn" data-go="home"><span>Accueil</span></button></div></div>`;

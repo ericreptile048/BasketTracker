@@ -37,7 +37,7 @@
     ${resume}
     <div class="lab"><span>Les 12 items</span><span><b>${ok}</b> validé${ok > 1 ? 's' : ''} · <b>${half}</b> à 1 sur 2</span></div>
     <div class="items">${items.map(({ it, S, p }, i) => `<button class="it ${S.st === 'ok' ? 'ok' : ''} pop" style="animation-delay:${i * 35}ms" data-act="item" data-id="${it.id}">
-      ${miniRing(p, S.st, i)}<span>${it.short}</span></button>`).join('')}</div>
+      ${miniRing(p, S.st, i, COL[it.f])}<span>${it.short}</span></button>`).join('')}</div>
     <div class="lab"><span>Les ${B.TOTAL} séances jusqu'au 14 févr.</span><span><b>${S.length}</b>/${B.TOTAL}</span></div>
     <div class="card"><div class="pomos">${dots}</div><div class="note">2 par semaine · orange = A · bleu = B · le rond qui pulse = la prochaine</div></div>
     <div class="gos">${doneCard}${btn(nx, !done)}${btn(other, false)}</div></div>`;
@@ -48,16 +48,15 @@
   const f1 = UI.f1, fd = t => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   const subLab = (it, k) => it.sub.find(x => x[0] === k)[1];
   // ---- jauges « bullet » : la barre = la dernière séance, ◆ or = le record, trait vert = l'objectif ----
-  // hi : paniers sur 10 · lo : on dessine les réussites (10 − pertes), l'objectif 0 perte est au bout de la barre
-  function bullet(it, lab, last, rec, i) {
-    const lo = it.t === 'lo', sc = x => (x === null ? null : (lo ? 10 - x : x) / 10);
-    const L = sc(last), R = sc(rec), G = lo ? 1 : it.g / 10, good = last !== null && (lo ? last === 0 : last >= it.g);
-    const val = last === null ? '<span class="bv none">—</span>'
-      : lo ? `<span class="bv ${good ? 'ok' : ''}">${10 - last}<small>/10</small></span>` // moves : réussies sur 10 (= 10 − pertes)
-      : `<span class="bv ${good ? 'ok' : ''}">${f1(last)}<small>/10</small></span>`;
+  // paniers sur 10, ou réussis sur 10 pour les moves (stockés tels quels, comme dans Progrès) : même échelle partout
+  // live = le record vient de la séance en cours (record provisoire, ◇ en pointillé)
+  function bullet(it, lab, last, rec, i, live) {
+    const sc = x => (x === null ? null : x / 10);
+    const L = sc(last), R = sc(rec), G = it.g / 10, good = last !== null && last >= it.g;
+    const val = last === null ? '<span class="bv none">—</span>' : `<span class="bv ${good ? 'ok' : ''}">${f1(last)}<small>/10</small></span>`;
     return `<div class="bl"><span class="bn">${lab}</span><span class="bt">
       ${L !== null ? `<i class="bf ${good ? 'ok' : ''}" style="width:${Math.max(3, L * 100)}%;animation-delay:${i * 70}ms"></i>` : ''}
-      <i class="bg" style="left:${G * 100}%"></i>${R !== null ? `<i class="br" style="left:${R * 100}%;animation-delay:${200 + i * 70}ms"></i>` : ''}</span>${val}</div>`;
+      <i class="bg" style="left:${G * 100}%"></i>${R !== null ? `<i class="br ${live ? 'prov' : ''}" style="left:${R * 100}%;animation-delay:${200 + i * 70}ms"></i>` : ''}</span>${val}</div>`;
   }
   // temps suivis (slalom) : la courbe des séances, ◆ or au record, rond blanc à la dernière
   function spark(vals) {
@@ -79,19 +78,28 @@
     if (it.t === 'manual') rows = `<div class="pnote">${S.st === 'ok' ? 'Fait le ' + fd(S.when) + ' ✓' : 'À faire hors séance : la vidéo, puis les 3 occasions en 3 phrases.'}</div>`;
     else if (it.t === 'done') rows = `<div class="pnote">Faite <b>${L.length}</b> fois dans l'échauffement.</div>`;
     else if (it.t === 'time') {
-      const vals = L.slice(-8).map(x => x.e.val);
-      rows = vals.length ? `${spark(vals)}<div class="tk"><span><i class="dm"></i>record <b>${f1(Math.min(...L.map(x => x.e.val)))} s</b></span><span><i class="dl"></i>dernier <b>${f1(last.e.val)} s</b>${last.e.loss !== undefined ? ' · ' + last.e.loss + ' perte' + (last.e.loss > 1 ? 's' : '') : ''}</span></div>`
+      const vals = L.slice(-8).map(x => x.e.val), R = B.liveBest(data, it, it.key);
+      rows = vals.length || R.live ? `${vals.length ? spark(vals) : ''}<div class="tk"><span><i class="dm ${R.live ? 'prov' : ''}"></i>${R.live ? 'record provisoire' : 'record'} <b>${f1(R.v)} s</b></span>${last ? `<span><i class="dl"></i>dernier <b>${f1(last.e.val)} s</b>${last.e.loss !== undefined ? ' · ' + last.e.loss + ' perte' + (last.e.loss > 1 ? 's' : '') : ''}</span>` : ''}</div>`
         : '<div class="pnote">Pas encore fait.</div>';
     } else {
       const subs = it.sub || [['_', it.short]];
       const lvl = it.t === 'lo' && S.st !== 'ok' ? (B.moveLevels(data, it).find(x => x.role === 'test') || {}).key : null;
+      let anyLive = false;
       rows = subs.map(([k, lab], i) => {
         const key = k === '_' ? undefined : k, lastV = k === '_' ? (last ? Math.round(last.e.val * 10) / 10 : null) : B.lastSub(data, it, k);
-        const recV = k === '_' ? (L.length ? Math.max(...L.map(x => x.e.val)) : null) : B.best(data, it, key);
+        // le record : séances enregistrées + séance en cours (record provisoire).
+        // Sans variante (lancers, jump stop) : la meilleure moyenne de séance, comme la valeur « dernière ».
+        let R;
+        if (k === '_') {
+          const saved = L.length ? Math.max(...L.map(x => x.e.val)) : null, cur = data.current ? data.current.res.filter(r => r.item === it.id).map(r => r.v) : [];
+          const cm = cur.length ? cur.reduce((a, b) => a + b, 0) / cur.length : null;
+          R = cm !== null && (saved === null || cm > saved) ? { v: cm, live: true } : { v: saved, live: false };
+        } else R = B.liveBest(data, it, key);
+        if (R.live) anyLive = true;
         const name = it.t === 'lo' ? `<span class="lvn ${k === lvl ? 'cur' : ''}">${ICON[k]}</span>` : lab;
-        return bullet(it, name, lastV, recV === null ? null : Math.round(recV * 10) / 10, i);
+        return bullet(it, name, lastV, R.v === null ? null : Math.round(R.v * 10) / 10, i, R.live);
       }).join('');
-      foot = `<div class="pft"><span class="lgd"><i class="lf"></i>dernière<i class="dm"></i>record<i class="lg"></i>objectif</span>${two(L)}</div>`;
+      foot = `<div class="pft"><span class="lgd"><i class="lf"></i>dernière<i class="dm"></i>record${anyLive ? '<i class="dm prov"></i>provisoire' : ''}<i class="lg"></i>objectif</span>${two(L)}</div>`;
     }
     return { S, stTxt, html: rows + foot };
   }

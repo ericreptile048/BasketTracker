@@ -1,6 +1,6 @@
 // Service worker : l'app marche sans réseau (tout est gardé dans le téléphone),
 // mais quand il y a du réseau elle prend toujours la dernière version (réseau d'abord, cache si pas de réseau ou trop lent).
-const CACHE = 'basket-v4';
+const CACHE = 'basket-v5';
 const FILES = ['./', './index.html', './css/app.css', './js/data.js', './js/ui.js', './js/home.js', './js/seance.js', './js/progres.js', './js/reglages.js', './js/app.js',
   './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 

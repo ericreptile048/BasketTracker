@@ -42,7 +42,7 @@
     if (!e) return '—';
     if (it.t === 'done') return 'faite';
     if (it.t === 'time') return `<em>${f1(e.val)}</em> s${e.loss !== undefined ? ` · ${e.loss} perte${e.loss > 1 ? 's' : ''}` : ''}`;
-    if (it.t === 'lo') return `<span class="lvs">${it.sub.filter(([k]) => e.subs[k] !== undefined).map(([k]) => `<span class="lv ${e.subs[k] === 0 ? 'ok' : ''}">${ICON[k]}<b>${10 - e.subs[k]}</b></span>`).join('')}</span>`;
+    if (it.t === 'lo') return `<span class="lvs">${it.sub.filter(([k]) => e.subs[k] !== undefined).map(([k]) => `<span class="lv ${e.subs[k] >= it.g ? 'ok' : ''}">${ICON[k]}<b>${e.subs[k]}</b></span>`).join('')}</span>`;
     if (it.sub) return it.sub.filter(([k]) => e.subs[k] !== undefined).map(([k, l]) => `${l} <em>${e.subs[k]}</em>`).join(' · ');
     return `<em>${f1(e.val)}</em>/10`;
   }
@@ -83,7 +83,9 @@
       head = `<div class="big">${now}<small>%</small></div><p>de l'objectif en moyenne<br><b>${okn}/${its.length}</b> items validés</p>`;
       ch = chart(sv.map((v, k) => ({ c: shade(c, k), v })), { goal: 100, n, dates });
       chips = pits.map((it, k) => `<span class="chip"><i style="background:${shade(c, k)}"></i>${it.short} <b>${sv[k][n - 1]}%</b></span>`).join('');
-      rows = rowsFor(d, ids, 0);
+      // dribble : + le slalom main droite (suivi, hors des 12) et l'ancien slalom en archive s'il a des séances
+      const extra = F === 'drib' ? [15].concat(B.history(d, B.ITEM(16)).length ? [16] : []) : [];
+      rows = rowsFor(d, ids.concat(extra), 0);
     }
     return `${tabs}<div class="famhead">${head}</div><div class="card">${ch}<div class="chips">${chips}</div></div>
       <div class="lab"><span>${lab}</span><span>touche pour la fiche</span></div><div class="prows">${rows}</div>`;
@@ -92,7 +94,7 @@
     return ids.map((id, i) => {
       const it = B.ITEM(id), S = B.status(d, it), L = S.L || [], last = L[L.length - 1], c = COL[it.f];
       // moves : la moyenne des réussites des niveaux faits ce jour-là (plus haut = mieux)
-      const vals = L.map(x => it.t === 'lo' ? mean(Object.values(x.e.subs).map(v => 10 - v)) : x.e.val);
+      const vals = L.map(x => it.t === 'lo' ? mean(Object.values(x.e.subs)) : x.e.val);
       const sp = L.length > 1 && it.t !== 'done' ? spark(vals.slice(-8), c, it.t === 'time') : '<span class="spk"></span>';
       const det = it.t === 'manual' ? (S.st === 'ok' ? 'fait' : 'à faire hors séance') : last ? (it.t === 'lo' ? evTxt(it, last.e) : 'dernier ' + evTxt(it, last.e)) : 'pas encore fait';
       return `<button class="prow" style="--c:${c};animation-delay:${(k0 + i) * 40}ms" data-pi="${id}"><i></i><div><b>${it.n}</b><small>${det}</small></div>${sp}
@@ -120,17 +122,24 @@
   // ---------- Par séance : une carte par séance, une barre par exercice ----------
   function sesRows(d, s) {
     const out = [];
-    B.ITEMS.forEach(it => {
+    // l'ordre des lignes : celui des items, mais les slaloms ensemble (gauche, droite, ancien)
+    const rank = it => it.id === 15 ? 5.1 : it.id === 16 ? 5.2 : it.id;
+    B.ITEMS.slice().sort((a, b) => rank(a) - rank(b)).forEach(it => {
       if (it.t === 'manual' || it.t === 'done') return;
       const e = B.evalItem(it, s); if (!e) return;
       const L = B.history(d, it), j = L.findIndex(x => x.s === s), prev = j > 0 ? L[j - 1].e : null;
       const keys = [...new Set(s.res.filter(r => r.item === it.id).map(r => r.key))];
       const pr = keys.some(k => B.isRecord(d, it, k, s));
-      // la valeur à comparer : plus haut = mieux (les pertes et les temps sont retournés)
-      const score = x => it.t === 'time' ? -x.val : it.t === 'lo' ? mean(Object.values(x.subs).map(v => 10 - v)) : x.val;
+      // la valeur à comparer : plus haut = mieux (les temps sont retournés ; les moves sont déjà en réussies)
+      const score = x => it.t === 'time' ? -x.val : it.t === 'lo' ? mean(Object.values(x.subs)) : x.val;
       const dlt = prev ? Math.round((score(e) - score(prev)) * 10) / 10 : 0;
-      const p = it.t === 'time' ? null : Math.round(B.progressAt(d, it, s.start) * 100);
-      const big = it.t === 'time' ? f1(e.val) + '<small> s</small>' : it.t === 'lo' ? (() => { const top = ['run', 'walk', 'imm'].find(k => e.subs[k] !== undefined); return `<span class="lvi">${ICON[top]}</span>${10 - e.subs[top]}<small>/10</small>`; })() : f1(e.val) + '<small>/10</small>';
+      // temps : pas d'objectif chiffré → échelle inversée sur le record (record à cette date = barre pleine, 2× plus lent = moitié)
+      // moves : la barre = le score du niveau affiché ce jour-là (🐌 10/10 = barre pleine), comme le chiffre à côté ;
+      // l'avancée cumulée sur les 3 niveaux reste dans les anneaux de l'accueil
+      const lvTop = it.t === 'lo' ? ['run', 'walk', 'imm'].find(k => e.subs[k] !== undefined) : null;
+      const p = it.t === 'time' ? Math.round(B.best(d, it, undefined, s.start + 1) / e.val * 100)
+        : it.t === 'lo' ? e.subs[lvTop] * 10 : Math.round(B.progressAt(d, it, s.start) * 100);
+      const big = it.t === 'time' ? f1(e.val) + '<small> s</small>' : it.t === 'lo' ? `<span class="lvi">${ICON[lvTop]}</span>${e.subs[lvTop]}<small>/10</small>` : f1(e.val) + '<small>/10</small>';
       out.push({ it, pr, dlt, p, big });
     });
     return out;
@@ -172,10 +181,10 @@
     } else if (it.sub) {
       body = `<div class="obj">${it.sub.map(([k, l], j) => {
         const v = B.history(d, it).map(x => x.e.subs[k]).filter(x => x !== undefined), st = B.subStatus(d, it, k), lo = it.t === 'lo', col = shade(c, j);
-        const best = v.length ? (lo ? Math.min(...v) : Math.max(...v)) : null, u = x => lo ? (10 - x) + '/10' : x + '/10';
-        return `<div class="ob" style="--oc:${col};animation-delay:${j * 70}ms"><div class="oh"><i></i><div class="ot"><b>${lo ? ICON[k] : ''}${cap(l)}</b><small>${lo && k === 'imm' ? 'avant le test · objectif 10/10' : 'objectif : ' + (lo ? '10/10' : it.g + '/10')}</small></div>
+        const best = v.length ? Math.max(...v) : null, u = x => x + '/10';
+        return `<div class="ob" style="--oc:${col};animation-delay:${j * 70}ms"><div class="oh"><i></i><div class="ot"><b>${lo ? ICON[k] : ''}${cap(l)}</b><small>${lo && k === 'imm' ? 'avant le test · objectif 10/10' : 'objectif : ' + it.g + '/10'}</small></div>
           <div class="on"><span>🏆 <b>${best === null ? '—' : u(best)}</b></span><span>dernier ${v.length ? u(v[v.length - 1]) : '—'}</span></div>${lo && k === 'imm' ? '' : pill(st)}</div>
-          ${v.length ? chart([{ c: col, v: lo ? v.map(x => 10 - x) : v, dots: v.map((_, i) => i), r: 4.5, dc: v.map(x => (lo ? x === 0 : x >= it.g) ? 'var(--ok)' : col) }], { lo: 0, hi: 10, goal: lo ? 10 : it.g, goalTxt: 'objectif', H: 120, n: v.length, yl: lo ? 'réussies /10' : 'paniers /10', fmt: v => Math.round(v) }) : '<p class="empty">pas encore fait</p>'}</div>`;
+          ${v.length ? chart([{ c: col, v, dots: v.map((_, i) => i), r: 4.5, dc: v.map(x => x >= it.g ? 'var(--ok)' : col) }], { lo: 0, hi: 10, goal: it.g, goalTxt: 'objectif', H: 120, n: v.length, yl: lo ? 'réussis /10' : 'paniers /10', fmt: v => Math.round(v) }) : '<p class="empty">pas encore fait</p>'}</div>`;
       }).join('')}</div>`;
     } else {
       const v = L.map(x => x.e.val), time = it.t === 'time';
@@ -205,7 +214,7 @@
     const cls = (a, b, lowGood) => (b === undefined || b === null || a === b ? '' : (lowGood ? a < b : a > b) ? 'up' : 'dn');
     if (it.t === 'done') return 'faite';
     if (it.t === 'lo') return `<span class="lvs">${it.sub.filter(([k]) => e.subs[k] !== undefined).map(([k]) => { const v = e.subs[k];
-      return `<span class="lv ${v === 0 ? 'ok' : cls(v, p && p.subs[k], true)}">${ICON[k]}<b>${10 - v}</b></span>`; }).join('')}</span>`;
+      return `<span class="lv ${v >= it.g ? 'ok' : cls(v, p && p.subs[k])}">${ICON[k]}<b>${v}</b></span>`; }).join('')}</span>`;
     if (it.sub) return it.sub.filter(([k]) => e.subs[k] !== undefined).map(([k, l]) => `<span class="lb">${l}</span> <span class="dv ${cls(e.subs[k], p && p.subs[k])}">${e.subs[k]}</span>`).join(' · ');
     if (it.t === 'time') return `<span class="dv ${cls(e.val, p && p.val, true)}">${f1(e.val)} s</span>${it.m ? ` <span class="lb">· ${f1(it.m / e.val * 3.6)} km/h</span>` : e.loss !== undefined ? ` <span class="lb">· ${e.loss} perte${e.loss > 1 ? 's' : ''}</span>` : ''}`;
     return `<span class="dv ${cls(Math.round(e.val * 10), p && Math.round(p.val * 10))}">${f1(e.val)}/10</span>`;

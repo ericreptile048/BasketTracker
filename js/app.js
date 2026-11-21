@@ -58,16 +58,20 @@
     const d = B.blank(), DAY = 864e5, t0 = new Date().setHours(9, 0, 0, 0) - 21 * DAY; // 6 séances sur les 3 dernières semaines
     const plan = [
       ['A', [[1, 'ft', 5], [1, 'ft', 6], [1, 'ft', 5], [2, 'face', 5], [2, 'g', 4], [2, 'd', 3], [3, 'cg', 1], [3, 'face', 2], [9, 'd', 8], [9, 'g', 7], [11, 'def', 1]]],
-      ['B', [[5, 'slalom', 24.1, { loss: 3 }], [6, 'imm', 1], [7, 'imm', 3], [8, 'imm', 4], [10, 'd', 6], [10, 'g', 5], [4, 'js', 3], [13, 'half', 9.6], [11, 'def', 1]]],
+      // moves : réussis sur 10 (10 − pertes)
+      ['B', [[16, 'slalom', 24.1, { loss: 3 }], [6, 'imm', 9], [7, 'imm', 7], [8, 'imm', 6], [10, 'd', 6], [10, 'g', 5], [4, 'js', 3], [13, 'half', 9.6], [11, 'def', 1]]],
       ['A', [[1, 'ft', 7], [1, 'ft', 7], [1, 'ft', 8], [2, 'face', 7], [2, 'g', 6], [2, 'd', 5], [3, 'cd', 3], [3, 'cg', 2], [9, 'd', 9], [9, 'g', 9], [11, 'def', 1]]],
-      ['B', [[5, 'slalom', 22.4, { loss: 2 }], [6, 'imm', 0], [7, 'imm', 1], [8, 'imm', 2], [10, 'd', 8], [10, 'g', 7], [4, 'js', 5], [13, 'half', 9.2], [11, 'def', 1]]],
+      ['B', [[15, 'droite', 27.5], [5, 'gauche', 34.8, { loss: 4 }], [5, 'gauche', 33.9, { loss: 3 }], [5, 'gauche', 35.2, { loss: 5 }], [6, 'imm', 10], [7, 'imm', 9], [8, 'imm', 8], [10, 'd', 8], [10, 'g', 7], [4, 'js', 5], [13, 'half', 9.2], [14, 'full', 18.4], [13, 'half', 9.0], [11, 'def', 1]]],
       ['A', [[1, 'ft', 8], [1, 'ft', 7], [1, 'ft', 7], [2, 'face', 7], [2, 'g', 7], [2, 'd', 6], [3, 'face', 3], [3, 'cd', 3], [9, 'd', 9], [9, 'g', 10], [11, 'def', 1]]],
-      ['B', [[5, 'slalom', 20.9, { loss: 1 }], [6, 'imm', 0], [6, 'walk', 2], [7, 'imm', 0], [8, 'imm', 1], [10, 'd', 9], [10, 'g', 8], [4, 'js', 4], [14, 'full', 17.8], [11, 'def', 1]]],
+      ['B', [[15, 'droite', 26.9], [5, 'gauche', 32.6, { loss: 2 }], [5, 'gauche', 33.1, { loss: 2 }], [5, 'gauche', 32.9, { loss: 1 }], [6, 'imm', 10], [6, 'walk', 8], [7, 'imm', 10], [8, 'imm', 9], [10, 'd', 9], [10, 'g', 8], [4, 'js', 4], [13, 'half', 8.8], [14, 'full', 17.8], [14, 'full', 18.1], [11, 'def', 1]]],
     ];
     plan.forEach(([type, res], i) => { const st = t0 + [0, 4, 7, 11, 14, 18][i] * DAY;
       d.sessions.push({ id: st, type, start: st, end: st + (38 + i) * 60e3, res: res.map(([item, key, v, x]) => Object.assign({ item, key, v }, x || {})) }); });
     if (Q.has('today')) { const s = d.sessions[d.sessions.length - 1]; s.start = s.id = Date.now() - 3 * 3600e3; s.end = s.start + 41 * 60e3; }
-    if (Q.has('cours')) { B.startSession(d, 'A', Date.now() - 18 * 60e3); B.record(d, { item: 1, key: 'ft', v: 7 }); }
+    if (Q.has('cours')) { B.startSession(d, 'A', Date.now() - 18 * 60e3); B.record(d, { item: 1, key: 'ft', v: 9 }); }
+    // ?coursb : séance B en cours, un record provisoire au crossover et au sprint ½ (pour juger l'écran)
+    if (Q.has('coursb')) { B.startSession(d, 'B', Date.now() - 25 * 60e3);
+      [[6, 'imm', 10], [7, 'imm', 10], [13, 'half', 9.0], [13, 'half', 7.2]].forEach(([item, key, v], i) => B.record(d, { item, key, v, s: i + 1 })); }
     return d;
   }
 

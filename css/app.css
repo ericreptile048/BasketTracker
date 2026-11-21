@@ -185,7 +185,7 @@ h1{font-size:36px;font-weight:800;letter-spacing:-.8px}
 
 .ringbox{position:relative;width:min(290px,78vw);aspect-ratio:1;margin:8px auto 4px;display:grid;place-items:center}
 .ringbox.sm{width:min(230px,62vw);margin-top:20px}
-.ringbox svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.ringbox svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible} /* le halo du cercle dépasse du cadre : on le laisse se voir en entier */
 .ringbox .tr{fill:none;stroke:var(--card);stroke-width:16}
 .ringbox .ar{fill:none;stroke:var(--sc);stroke-width:16;stroke-linecap:round;transition:stroke-dashoffset .25s linear;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--sc) 50%,transparent))}
 .ringbox .t{font-size:88px;font-weight:700;letter-spacing:-3px;font-variant-numeric:tabular-nums;line-height:1;text-align:center}
@@ -245,7 +245,7 @@ h1{font-size:36px;font-weight:800;letter-spacing:-.8px}
 .res .ck path{stroke-dasharray:24;stroke-dashoffset:24;animation:draw .4s var(--ease) .15s forwards}
 .lbl2{font-size:17px;font-weight:700;text-align:center;margin-bottom:10px}
 .losses{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
-.losses button{height:60px;border-radius:16px;background:var(--card);font-size:24px;font-weight:800;text-align:center}
+.losses button{height:52px;border-radius:16px;background:var(--card);font-size:24px;font-weight:800;text-align:center}
 .losses button.good{background:color-mix(in srgb,var(--ok) 25%,var(--card));color:var(--ok)}
 .losses button:active{transform:scale(.94)}
 .dseg{position:relative;display:grid;grid-template-columns:1fr 1fr;background:var(--card);border-radius:14px;padding:4px;margin-top:14px}
@@ -336,7 +336,7 @@ h1{font-size:36px;font-weight:800;letter-spacing:-.8px}
 .hd .t{flex:1;min-width:0}.hd .t b{display:block;font-size:17px;font-weight:700}.hd .t small{font-size:13px;color:var(--sx)}
 .hd .m{text-align:right}.hd .m b{display:block;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}.hd .m small{font-size:12.5px;color:var(--sx)}
 .bars{display:flex;flex-direction:column;gap:9px;margin-top:14px}
-.fbr{display:grid;grid-template-columns:96px minmax(0,1fr) auto;align-items:center;gap:9px;font-size:14px}
+.fbr{display:grid;grid-template-columns:96px minmax(0,1fr) 98px;align-items:center;gap:9px;font-size:14px}
 .fbr .nm{color:var(--sx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fbr .tr{height:10px;border-radius:5px;background:var(--card-hi);overflow:hidden}
 .fbr .tr i{display:block;height:100%;border-radius:5px;background:var(--c);transform-origin:left;animation:grow .9s var(--ease) both}
@@ -461,3 +461,11 @@ html.fade,html.fade *{transition:background-color .35s var(--ease),color .35s va
 :root[data-theme=light] .col{background:var(--card-hi)}
 :root[data-theme=light] .r:not(.on){background:var(--card)}
 :root[data-theme=light] .score .n .q{color:var(--card-hi)}
+
+/* record provisoire (séance en cours) : losange en pointillé, étiquette « cette séance » */
+.br.prov{background:transparent;border:2px dashed var(--gold);box-shadow:0 0 10px color-mix(in srgb,var(--gold) 50%,transparent)}
+.dm.prov{background:transparent;border:1.5px dashed var(--gold)}
+.score .best .prov{font-style:normal;font-size:11.5px;margin-left:4px;padding:1px 6px;border-radius:8px;border:1px dashed var(--gold)}
+.tagline span.live{color:var(--gold);box-shadow:inset 0 0 0 1.5px var(--gold)}
+.tagline span.live b{color:var(--gold)}
+.sdone{margin-top:10px;text-align:center;font-size:13.5px;color:var(--sx)}.sdone b{color:var(--tx);font-variant-numeric:tabular-nums}
